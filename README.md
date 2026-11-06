@@ -43,11 +43,6 @@ On a Linux host with Docker Compose, in the printer's network, take
 [compose.yaml](compose.yaml) and [scan.env.example](scan.env.example) from this
 repository:
 
-> Not released yet: scankeyd's image appears on ghcr.io with the first
-> release. Until then, replace its `image:` with
-> `build: https://github.com/luukvisser/scankeyd.git`, and the tidyscan
-> steps' `#v0.3.0` with `#main`.
-
 ```sh
 cp scan.env.example scan.env        # set PRINTER to the printer's address
 mkdir -p scans/new scans/pdf data && sudo chown 1000:1000 scans/new scans/pdf data
