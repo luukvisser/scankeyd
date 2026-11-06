@@ -216,7 +216,8 @@ Python 3.13 from
 (musl), scankeyd and paho-mqtt on an empty image, with no shell, no package
 manager and no copyleft software. It runs only as a container (it is not a
 PyPI package). Use a fixed version tag; there is no `latest`. Each release
-image has an SBOM and build provenance and is signed with cosign (keyless):
+image has an SBOM and build provenance and is signed with cosign (keyless;
+verify with cosign 3 or newer, which reads the signature's newer format):
 
 ```sh
 cosign verify ghcr.io/luukvisser/scankeyd:0.1.0 \
