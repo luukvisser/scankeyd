@@ -1,0 +1,20 @@
+# A published port (e.g. NAS boxes; not Docker Desktop or rootless Docker, which hide the
+# printer's address, so every press would be dropped): the printer sends the button press to the
+# Docker host, which forwards it to the container. ADVERTISE_IP is the host's LAN address.
+services:
+  scankeyd:
+    image: ghcr.io/luukvisser/scankeyd:0.1.0
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "54925:54925/udp"
+    environment:
+      PRINTER: 192.168.1.50
+      ADVERTISE_IP: 192.168.1.10
+      TARGET_NAME: Scan
+    volumes:
+      - ./scans/new:/scans  # mkdir -p scans/new data && sudo chown 1000:1000 scans/new data
+      - ./data:/data

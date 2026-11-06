@@ -1,0 +1,36 @@
+name: Printer report
+description: scankeyd on a printer model not listed yet, working or not
+labels: [printer]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Printer model
+      placeholder: DCP-L2627DWE
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+      description: On the printer's web page, or its settings report
+  - type: dropdown
+    id: result
+    attributes:
+      label: Does it work?
+      options: ["Yes", "Partly", "No"]
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `python3 -m scankeyd doctor`
+      description: It shows the printer's address and the advertised one; replace them with x if you like.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log of one button press (LOG_LEVEL=debug)
+      render: text

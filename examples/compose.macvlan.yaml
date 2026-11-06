@@ -1,0 +1,30 @@
+# macvlan: the container gets its own address on the printer's network. Pick a free address
+# outside your router's DHCP range; the host itself cannot reach the container this way.
+services:
+  scankeyd:
+    image: ghcr.io/luukvisser/scankeyd:0.1.0
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks:
+      lan:
+        ipv4_address: 192.168.1.60
+    environment:
+      PRINTER: 192.168.1.50
+      TARGET_NAME: Scan
+      FUNC_IMAGE: gray
+    volumes:
+      - ./scans/new:/scans  # mkdir -p scans/new data && sudo chown 1000:1000 scans/new data
+      - ./data:/data
+
+networks:
+  lan:
+    driver: macvlan
+    driver_opts:
+      parent: eth0          # the host's LAN interface
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+          gateway: 192.168.1.1

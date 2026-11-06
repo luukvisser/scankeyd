@@ -1,0 +1,16 @@
+# Host networking (Linux): the printer reaches the container at the host's own address.
+services:
+  scankeyd:
+    image: ghcr.io/luukvisser/scankeyd:0.1.0
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    network_mode: host
+    environment:
+      PRINTER: 192.168.1.50
+      TARGET_NAME: Scan
+    volumes:
+      - ./scans/new:/scans  # mkdir -p scans/new data && sudo chown 1000:1000 scans/new data
+      - ./data:/data

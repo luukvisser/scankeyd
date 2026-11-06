@@ -1,0 +1,11 @@
+**/__pycache__
+**/*.pyc
+tests
+*/tests
+.git
+.github
+docs
+examples
+*.md
+.venv
+!THIRD-PARTY-NOTICES.md

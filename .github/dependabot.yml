@@ -1,0 +1,38 @@
+# Weekly update PRs, one per ecosystem, for releases at least two weeks old.
+# Not covered, updated by hand: the python-build-standalone release and the tzdata wheel the
+# Dockerfile fetches by sha256, and the uv version setup-uv installs (`version:` in the workflows).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      python:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  # The build stages' base images, pinned by digest: python and alpine.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      images:
+        patterns: ["*"]
+    open-pull-requests-limit: 3

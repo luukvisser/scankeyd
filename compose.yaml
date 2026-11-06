@@ -1,0 +1,82 @@
+# scankeyd and the optional steps after it, each in a container of its own.
+#
+#   docker compose up -d                                        raw pages only: scans/new/<function>/<name>/
+#   docker compose --profile pdf up -d                          + one PDF per document in scans/pdf/
+#   docker compose --profile tidy up -d                         + pages upright and straight, a text layer
+#                                                                 where FUNC_...=...,ocr (instead of pdf)
+#   docker compose --profile tidy --profile drive up -d         + each PDF moved to Google Drive
+#
+# Choose pdf or tidy, not both: they read the same folder. Settings: scan.env (copy
+# scan.env.example); after a change, the same `docker compose ... up -d` again. Folders, made by you
+# and owned by uid 1000: scans/new, scans/pdf, data (and rclone, for drive). See README, "Steps".
+x-hardened: &hardened
+  restart: unless-stopped
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  env_file: scan.env
+
+services:
+  # Registers on the printer, waits for the Scan key, scans, delivers the pages as scanned.
+  # Host networking: the printer sends the button press to this host's address (README, Networking).
+  scankeyd:
+    <<: *hardened
+    image: ghcr.io/luukvisser/scankeyd:0.1.0
+    network_mode: host
+    volumes:
+      - ./scans/new:/scans
+      - ./data:/data
+
+  # Pages to PDF only (standard library, ~77 MB): no turning, straightening or text.
+  pdf:
+    <<: *hardened
+    build:  # tidyscan publishes no images: built from its repository at a fixed tag
+      context: https://github.com/luukvisser/tidyscan.git#v0.3.0
+      target: base
+    image: tidyscan:0.3.0-base
+    profiles: [pdf]
+    network_mode: none
+    tmpfs: [/tmp]
+    volumes:
+      - ./scans/new:/in
+      - ./scans/pdf:/out
+
+  # Pages turned upright and straightened (Tesseract), a text layer for the functions with ,ocr
+  # (OCRmyPDF): tidyscan, ~480 MB. No network.
+  tidy:
+    <<: *hardened
+    build:
+      context: https://github.com/luukvisser/tidyscan.git#v0.3.0
+      target: full
+    image: tidyscan:0.3.0
+    profiles: [tidy]
+    network_mode: none
+    tmpfs: [/tmp]
+    volumes:
+      - ./scans/new:/in
+      - ./scans/pdf:/out
+
+  # Each finished PDF moved to Google Drive by rclone (its own login, see README); a name already
+  # there is never overwritten (--immutable). While the internet is down the PDFs wait in scans/pdf.
+  # The only container here with internet access (Docker's default network, so the LAN too).
+  drive:
+    <<: *hardened
+    image: rclone/rclone:1.75.2@sha256:2687085f718d3c628f7fdfb77c52a1d344332aed543110bb88088f2c70d43eb5
+    profiles: [drive]
+    tmpfs: [/tmp]
+    environment:
+      RCLONE_CONFIG: /config/rclone/rclone.conf
+      RCLONE_CACHE_DIR: /tmp/rclone-cache
+    volumes:
+      - ./scans/pdf:/out
+      - ./rclone:/config/rclone
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "moving PDFs from scans/pdf to $${DRIVE_REMOTE:-drive:}"
+        while :; do
+          rclone move /out "$${DRIVE_REMOTE:-drive:}" --filter '- .*' --filter '+ *.pdf' --filter '- *' --min-age 5s \
+            --immutable --no-traverse --log-level NOTICE --stats 0 || echo "upload failed; retrying"
+          sleep "$${DRIVE_INTERVAL:-15}"
+        done
