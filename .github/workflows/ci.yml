@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # weekly, for advisories published since the last push: the audits (zizmor, gitleaks, trivy)
+  # and the amd64 image, for its trivy scan; the other checks are skipped
+  schedule:
+    - cron: "17 5 * * 1"  # Mondays 05:17 UTC
 
 # Read the repository, nothing else; no job asks for more.
 permissions:
@@ -16,6 +20,7 @@ concurrency:
 jobs:
   lint:
     name: Lint (ruff, ty)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -54,6 +59,7 @@ jobs:
 
   containers:
     name: Container (hadolint)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -65,6 +71,7 @@ jobs:
 
   reuse:
     name: Licensing (REUSE)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -91,6 +98,7 @@ jobs:
 
   test:
     name: Tests (Python ${{ matrix.python }})
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
@@ -113,8 +121,8 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        # the published image is multi-arch; arm64 is started under QEMU here
-        platform: [linux/amd64, linux/arm64]
+        # the published image is multi-arch; arm64 is started under QEMU here (not on the weekly run)
+        platform: ${{ fromJSON(github.event_name == 'schedule' && '["linux/amd64"]' || '["linux/amd64", "linux/arm64"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -134,3 +142,29 @@ jobs:
           docker run --rm ci-image:test --help
           out=$(docker run --rm ci-image:test run 2>&1) && exit 1
           echo "$out" | grep -q "PRINTER is required"
+      # Reported, not blocking: an advisory in the image is a reason to look, not to stop a merge.
+      # The amd64 image only: the arm64 one has the same packages.
+      - name: trivy image (fails only the weekly run)
+        if: matrix.platform == 'linux/amd64'
+        continue-on-error: ${{ github.event_name != 'schedule' }}  # reports on push/PR; the weekly run fails so GitHub mails
+        run: |
+          docker save -o "$RUNNER_TEMP/image.tar" ci-image:test
+          docker run --rm -v "$RUNNER_TEMP/image.tar:/image.tar:ro" \
+            aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
+            image --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --no-progress --input /image.tar
+
+  # Reported, not blocking: an advisory in a dependency is a reason to look, not to stop a merge.
+  audit:
+    name: Audit (trivy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: ${{ github.event_name != 'schedule' }}  # reports on push/PR; the weekly run fails so GitHub mails
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # uv.lock with its dev tools (ruff, ty), which run in CI and on contributors' machines
+      - run: >-
+          docker run --rm -v "$PWD:/repo:ro" -w /repo
+          aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+          fs --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --no-progress --include-dev-deps uv.lock
